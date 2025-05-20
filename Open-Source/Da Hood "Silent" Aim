@@ -1,0 +1,65 @@
+local user_input_service = game:GetService("UserInputService")
+local players = game:GetService("Players")
+local run_service = game:GetService("RunService")
+local virtual_input_manager = game:GetService("VirtualInputManager")
+
+local local_player = players.LocalPlayer
+local camera = workspace.CurrentCamera
+local is_mouse_button_3_held = false
+
+local function world_to_screen(pos)
+    local screen_pos, on_screen = camera:WorldToViewportPoint(pos)
+    return screen_pos, on_screen
+end
+
+local function get_closest_player_to_center()
+    local closest_player, closest_dist = nil, math.huge
+    local screen_center = Vector2.new(camera.ViewportSize.X / 2, camera.ViewportSize.Y / 2)
+
+    for _, player in pairs(players:GetPlayers()) do
+        if player ~= local_player and player.Character and player.Character:FindFirstChild("Head") then
+            local screen_pos, on_screen = world_to_screen(player.Character.Head.Position)
+            if on_screen then
+                local dist = (Vector2.new(screen_pos.X, screen_pos.Y) - screen_center).Magnitude
+                if dist < closest_dist then
+                    closest_dist = dist
+                    closest_player = player
+                end
+            end
+        end
+    end
+
+    return closest_player
+end
+
+local function click_at(pos)
+    virtual_input_manager:SendMouseButtonEvent(pos.X, pos.Y, 0, true, game, 0)
+    task.wait(0.05) -- Small delay to simulate a click
+    virtual_input_manager:SendMouseButtonEvent(pos.X, pos.Y, 0, false, game, 0)
+end
+
+user_input_service.InputBegan:Connect(function(input, game_processed)
+    if game_processed then return end
+    if input.UserInputType == Enum.UserInputType.MouseButton3 then
+        is_mouse_button_3_held = true
+    end
+end)
+
+user_input_service.InputEnded:Connect(function(input, game_processed)
+    if game_processed then return end
+    if input.UserInputType == Enum.UserInputType.MouseButton3 then
+        is_mouse_button_3_held = false
+    end
+end)
+
+run_service.RenderStepped:Connect(function()
+    if not is_mouse_button_3_held then return end
+
+    local target_player = get_closest_player_to_center()
+    if target_player and target_player.Character and target_player.Character:FindFirstChild("Head") then
+        local screen_pos, on_screen = world_to_screen(target_player.Character.Head.Position)
+        if on_screen then
+            click_at(Vector2.new(screen_pos.X, screen_pos.Y))
+        end
+    end
+end)
